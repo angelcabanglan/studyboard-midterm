@@ -1,18 +1,36 @@
 import { NextResponse } from "next/server";
-// TODO (Step 15): import { getServerSession } from "next-auth";
-// TODO (Step 15): import { authOptions } from "@/lib/auth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { getGroupById, updateTask, deleteTask } from "@/lib/data";
 
-// TODO (Step 15): PATCH /api/groups/:id/tasks/:taskId — update a task.
-// Requires authentication AND ownership of the parent group.
-// Same 3-check pattern as before: session -> group exists -> group.ownerId matches.
+// PATCH /api/groups/:id/tasks/:taskId — update a task.
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string; taskId: string } }
 ) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || !session.user) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   const group = await getGroupById(params.id);
+
   if (!group) {
-    return NextResponse.json({ error: "Group not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Group not found" },
+      { status: 404 }
+    );
+  }
+
+  if (group.ownerId !== session.user.id) {
+    return NextResponse.json(
+      { error: "Only the owner can update tasks in this group" },
+      { status: 403 }
+    );
   }
 
   const body = await request.json();
@@ -25,14 +43,34 @@ export async function PATCH(
   return NextResponse.json(updated);
 }
 
-// TODO (Step 15): DELETE /api/groups/:id/tasks/:taskId — same pattern as PATCH.
+// DELETE /api/groups/:id/tasks/:taskId — delete a task.
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string; taskId: string } }
 ) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || !session.user) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   const group = await getGroupById(params.id);
+
   if (!group) {
-    return NextResponse.json({ error: "Group not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Group not found" },
+      { status: 404 }
+    );
+  }
+
+  if (group.ownerId !== session.user.id) {
+    return NextResponse.json(
+      { error: "Only the group owner can delete this task" },
+      { status: 403 }
+    );
   }
 
   const deleted = await deleteTask(params.id, params.taskId);
