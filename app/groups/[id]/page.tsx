@@ -1,19 +1,28 @@
 import { notFound } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { getGroupById } from "@/lib/data";
 import TaskItem from "@/components/TaskItem";
+import DeleteGroupButton from "@/components/DeleteGroupButton";
+import NewTaskForm from "@/components/NewTaskForm";
 
 export default async function GroupDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const group = await getGroupById(params.id);
+  // Step 1: fetch session and group in parallel, since neither depends on the other
+  const [session, group] = await Promise.all([ // instead of waiting for the other to finish, we fire both at same time and wait
+    getServerSession(authOptions), // asks who is logged in, return null if none
+    getGroupById(params.id), // fetches the data
+  ]);
 
-  // Next.js's built-in way to render the closest not-found.tsx (or a
-  // default 404) when a dynamic route doesn't match real data.
   if (!group) {
     notFound();
   }
+
+  // Step 2: mirrors the exact same check your API routes already make
+  const isOwner = session?.user.id === group.ownerId;
 
   return (
     <div>
@@ -26,9 +35,23 @@ export default async function GroupDetailPage({
       <h2 className="mt-8 text-lg font-semibold">Tasks</h2>
       <ul className="mt-3 flex flex-col gap-2">
         {group.tasks.map((task) => (
-          <TaskItem key={task.id} task={task} />
+          // Step 3: pass isOwner and groupId down to each TaskItem
+          <TaskItem
+            key={task.id}
+            task={task}
+            isOwner={isOwner}
+            groupId={group.id}
+          />
         ))}
       </ul>
+
+      {/* Step 4: only render these when isOwner is true */}
+      {isOwner && (
+        <>
+          <NewTaskForm groupId={group.id} />
+          <DeleteGroupButton groupId={group.id} />
+        </>
+      )}
     </div>
   );
 }

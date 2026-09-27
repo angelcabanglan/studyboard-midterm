@@ -2,18 +2,17 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getGroups, createGroup } from "@/lib/data";
+import { createGroupSchema } from "@/lib/validations";
 
-// GET /api/groups — list every group. Stays PUBLIC.
 export async function GET() {
   const groups = await getGroups();
   return NextResponse.json(groups);
 }
 
-// POST /api/groups — create a new group.
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
+  if (!session) {
     return NextResponse.json(
       { error: "You must be logged in to create a group" },
       { status: 401 }
@@ -21,18 +20,18 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
+  const parsedResponse = createGroupSchema.safeParse(body);
 
-  if (!body.name || !body.subject) {
+  if (!parsedResponse.success) {
     return NextResponse.json(
-      { error: "'name' and 'subject' are required" },
+      { error: parsedResponse.error.issues[0].message },
       { status: 400 }
     );
   }
 
   const newGroup = await createGroup({
-    name: body.name,
-    subject: body.subject,
-    memberCount: body.memberCount ?? 1,
+    name: parsedResponse.data.name,
+    subject: parsedResponse.data.subject, // Make sure 'subject' is passed here
     ownerId: session.user.id,
   });
 
